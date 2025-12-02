@@ -18,11 +18,31 @@ router.post('/register', async (req, res) => {
         }
 
         // Check if user exists
-        const { data: existingUser } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('email', email)
-            .single();
+        let existingUser = null;
+        try {
+            const { data, error } = await supabaseAdmin
+                .from('users')
+                .select('id')
+                .eq('email', email)
+                .single();
+            
+            if (error && error.code === 'PGRST116') {
+                // No matching records found - that's fine for registration
+                existingUser = null;
+            } else if (error) {
+                throw error;
+            } else {
+                existingUser = data;
+            }
+        } catch (err) {
+            console.error('Database query error:', err.message);
+            if (err.message && (err.message.includes('is_verified') || err.message.includes('schema cache'))) {
+                return res.status(503).json({ 
+                    error: 'Database temporarily unavailable. This is a known issue - please try again in a moment.' 
+                });
+            }
+            throw err;
+        }
 
         if (existingUser) {
             return res.status(400).json({ error: 'Email already in use' });
@@ -67,8 +87,9 @@ router.post('/register', async (req, res) => {
         });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('❌ Registration Error:', err.message);
+        console.error('Stack:', err.stack);
+        res.status(500).json({ error: 'Internal server error', details: err.message });
     }
 });
 

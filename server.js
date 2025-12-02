@@ -44,16 +44,26 @@ app.use('/api/files', fileRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
+  console.error('❌ Server Error:', err.message);
   console.error(err.stack);
+  
+  // Don't crash the server on error
+  if (res.headersSent) {
+    return next(err);
+  }
+  
   res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error'
+    error: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`\n🚀 Secure Cloud Server running on http://localhost:${PORT}`);
-  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Start Server (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Secure Cloud Server running on http://localhost:${PORT}`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+}
 
 module.exports = app;
